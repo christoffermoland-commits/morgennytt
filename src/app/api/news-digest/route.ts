@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
     ]);
 
     console.log(`[Morgennytt] Hentet ${articles.length} artikler (siste 12 timer)`);
-    console.log(`[Morgennytt] Vær: ${weather ? `${weather.temperature}°C, ${weather.description}` : "ikke tilgjengelig"}`);
+    console.log(`[Morgennytt] Vær: ${weather ? `${weather.periods.length} perioder for ${weather.city}` : "ikke tilgjengelig"}`);
     console.log(`[Morgennytt] Quiz: ${quiz ? quiz.title : "ikke funnet"}`);
 
     // Oppsummer nyheter
