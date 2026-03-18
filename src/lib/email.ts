@@ -1,10 +1,17 @@
 import nodemailer from "nodemailer";
+import { QuizLink } from "./quiz";
+import { WeatherData, formatWeatherHtml } from "./weather";
+
+export interface DigestContent {
+  newsSummary: string;
+  weather: WeatherData | null;
+  quiz: QuizLink | null;
+  articleCount: number;
+}
 
 function getSmtpConfig() {
   const user = process.env.EMAIL_USER || "";
   const pass = process.env.EMAIL_PASS || "";
-
-  // Auto-detect SMTP host based on email domain
   const domain = user.split("@")[1]?.toLowerCase() || "";
 
   const smtpMap: Record<string, { host: string; port: number }> = {
@@ -27,10 +34,7 @@ function getSmtpConfig() {
   };
 }
 
-export async function sendDigestEmail(
-  htmlContent: string,
-  articleCount: number
-): Promise<void> {
+export async function sendDigestEmail(content: DigestContent): Promise<void> {
   const recipient = process.env.DIGEST_RECIPIENT_EMAIL;
   if (!recipient) {
     throw new Error("DIGEST_RECIPIENT_EMAIL er ikke satt");
@@ -45,6 +49,29 @@ export async function sendDigestEmail(
     day: "numeric",
   });
 
+  // Bygg innholdsseksjoner
+  const weatherSection = content.weather
+    ? formatWeatherHtml(content.weather)
+    : "";
+
+  const newsSection = `
+    <div style="margin-bottom:20px">
+      <h2 style="font-size:18px;margin:0 0 12px 0">📰 Dagens ${content.articleCount > 0 ? Math.min(content.articleCount, 5) : 0} viktigste saker</h2>
+      ${content.newsSummary}
+    </div>`;
+
+  const quizSection = content.quiz
+    ? `
+    <div style="background:#f9f5ff;border-radius:8px;padding:16px;margin-bottom:20px">
+      <h2 style="margin:0 0 8px 0;font-size:18px">🧠 Dagens Quiz</h2>
+      <p style="margin:0">
+        <a href="${content.quiz.url}" style="color:#6b21a8;text-decoration:none;font-weight:600">
+          ${content.quiz.title} →
+        </a>
+      </p>
+    </div>`
+    : "";
+
   const emailHtml = `
 <!DOCTYPE html>
 <html lang="no">
@@ -53,8 +80,8 @@ export async function sendDigestEmail(
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     body {
-      font-family: Georgia, 'Times New Roman', serif;
-      max-width: 640px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 600px;
       margin: 0 auto;
       padding: 20px;
       color: #1a1a1a;
@@ -63,12 +90,12 @@ export async function sendDigestEmail(
     }
     .header {
       border-bottom: 3px solid #1a1a1a;
-      padding-bottom: 16px;
-      margin-bottom: 24px;
+      padding-bottom: 12px;
+      margin-bottom: 20px;
     }
     .header h1 {
       margin: 0;
-      font-size: 28px;
+      font-size: 26px;
       letter-spacing: -0.5px;
     }
     .header .date {
@@ -76,20 +103,15 @@ export async function sendDigestEmail(
       font-size: 14px;
       margin-top: 4px;
     }
-    h2 {
-      color: #1a1a1a;
-      font-size: 20px;
-      margin-top: 28px;
-      border-bottom: 1px solid #ddd;
-      padding-bottom: 6px;
-    }
-    p { margin: 12px 0; }
-    ul { padding-left: 20px; }
-    li { margin: 8px 0; }
+    h2 { color: #1a1a1a; }
+    p { margin: 10px 0; }
+    ol { padding-left: 20px; }
+    li { margin: 10px 0; }
     strong { color: #0a0a0a; }
+    a { color: #1a0dab; }
     .footer {
-      margin-top: 32px;
-      padding-top: 16px;
+      margin-top: 28px;
+      padding-top: 14px;
       border-top: 1px solid #ddd;
       font-size: 12px;
       color: #999;
@@ -99,12 +121,13 @@ export async function sendDigestEmail(
 <body>
   <div class="header">
     <h1>Morgennytt</h1>
-    <div class="date">${today} &middot; ${articleCount} artikler oppsummert</div>
+    <div class="date">${today}</div>
   </div>
-  ${htmlContent}
+  ${weatherSection}
+  ${newsSection}
+  ${quizSection}
   <div class="footer">
-    <p>Denne oppsummeringen er automatisk generert av Morgennytt med Claude AI.</p>
-    <p>Kilder: VG, Aftenposten, NRK, The New York Times</p>
+    <p>Automatisk generert av Morgennytt · Kilder: VG, Aftenposten, NRK, NYTimes · Vær: Yr.no</p>
   </div>
 </body>
 </html>`;
@@ -112,7 +135,7 @@ export async function sendDigestEmail(
   await transporter.sendMail({
     from: `"Morgennytt" <${process.env.EMAIL_USER}>`,
     to: recipient,
-    subject: `Morgennytt - ${today}`,
+    subject: `Morgennytt — ${today}`,
     html: emailHtml,
   });
 }
